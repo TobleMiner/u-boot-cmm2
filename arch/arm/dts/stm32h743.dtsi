@@ -85,6 +85,7 @@
 			compatible = "st,stm32h7-spi";
 			reg = <0x40003c00 0x400>;
 			interrupts = <51>;
+			resets = <&rcc STM32H7_APB1L_RESET(SPI3)>;
 			clocks = <&rcc SPI3_CK>;
 			status = "disabled";
 		};
