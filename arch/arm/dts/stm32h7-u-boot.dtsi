@@ -43,8 +43,8 @@
 			 * second bank is bank@1
 			 */
 			bank1: bank@1 {
-				st,sdram-control = /bits/ 8 <NO_COL_8
-							     NO_ROW_12
+				st,sdram-control = /bits/ 8 <NO_COL_9
+							     NO_ROW_13
 							     MWIDTH_16
 							     BANKS_4
 							     CAS_3
