@@ -337,7 +337,7 @@ config STM32_QSPI
 
 config STM32_SPI
 	bool "STM32 SPI driver"
-	depends on ARCH_STM32MP
+	depends on ARCH_STM32MP || ARCH_STM32
 	help
 	  Enable the STM32 Serial Peripheral Interface (SPI) driver for STM32MP
 	  SoCs. This uses driver model and requires a device tree binding to
