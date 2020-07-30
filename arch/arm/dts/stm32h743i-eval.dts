@@ -43,6 +43,7 @@
 /dts-v1/;
 #include "stm32h743.dtsi"
 #include "stm32h743-pinctrl.dtsi"
+#include <dt-bindings/gpio/gpio.h>
 
 / {
 	model = "STMicroelectronics STM32H743i-EVAL board";
@@ -159,6 +160,23 @@
 	status = "disabled";
 };
 
+&spi3 {
+	cs-gpios = <&gpiod 2 0>;
+	pinctrl-0 = <&spi3_pins>;
+	pinctrl-names = "default";
+	status = "okay";
+
+	mmc-slot@0 {
+		compatible = "mmc-spi-slot";
+		reg = <0>;
+		gpios = <&gpiod 3 GPIO_ACTIVE_LOW>;
+		pinctrl-0 = <&mmc_spi_pins>;
+		pinctrl-names = "default";
+		spi-max-frequency = <50000000>;
+		voltage-ranges = <3300 3300>;
+	};
+};
+
 &pinctrl {
 	usart1_alt_pins: usart1@0 {
 		pins1 {
@@ -170,6 +188,30 @@
 		pins2 {
 			pinmux = <STM32_PINMUX('A', 10, AF7)>; /* USART1_RX */
 			bias-disable;
+		};
+	};	
+	spi3_pins: spi3@0 {
+		pins1 {
+			pinmux = <STM32_PINMUX('C', 12, AF6)>; /* MOSI */
+			bias-disable;
+			drive-push-pull;
+			slew-rate = <3>;
+		};
+		pins2 {
+			pinmux = <STM32_PINMUX('C', 11, AF6)>; /* MISO */
+			bias-disable;
+		};
+		pins3 {
+			pinmux = <STM32_PINMUX('C', 10, AF6)>; /* SCK */
+			bias-disable;
+			drive-push-pull;
+			slew-rate = <3>;
+		};
+	};	
+	mmc_spi_pins: mmc_spi@0 {
+		pins1 {
+			pinmux = <STM32_PINMUX('D', 3, GPIO)>; /* card detect */
+			bias-pull-up;
 		};
 	};	
 };
