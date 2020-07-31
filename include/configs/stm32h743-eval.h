@@ -12,6 +12,7 @@
 
 /* For booting Linux, use the first 16MB of memory */
 #define CONFIG_SYS_BOOTMAPSZ		SZ_16M
+#define CONFIG_SYS_BOOTM_LEN		(16 * 1024 * 1024)
 
 #define CONFIG_SYS_FLASH_BASE		0x08000000
 #define CONFIG_SYS_INIT_SP_ADDR		0x24040000
