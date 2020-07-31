@@ -114,19 +114,19 @@ struct stm32_spi_priv {
 	bool cs_high;
 };
 
-static void stm32_spi_write_txfifo(struct stm32_spi_priv *priv, uint16_t max)
+static void stm32_spi_write_txfifo(struct stm32_spi_priv *priv)
 {
-	while ((priv->tx_len > 0) && max &&
+	while ((priv->tx_len > 0) &&
 	       (readl(priv->base + STM32_SPI_SR) & SPI_SR_TXP)) {
 		u32 offs = priv->cur_xferlen - priv->tx_len;
 
-		if (priv->tx_len >= sizeof(u32) && max >= sizeof(u32) &&
+		if (priv->tx_len >= sizeof(u32) &&
 		    IS_ALIGNED((uintptr_t)(priv->tx_buf + offs), sizeof(u32))) {
 			const u32 *tx_buf32 = (const u32 *)(priv->tx_buf + offs);
 
 			writel(*tx_buf32, priv->base + STM32_SPI_TXDR);
 			priv->tx_len -= sizeof(u32);
-		} else if (priv->tx_len >= sizeof(u16) && max >= sizeof(u16) &&
+		} else if (priv->tx_len >= sizeof(u16) &&
 			   IS_ALIGNED((uintptr_t)(priv->tx_buf + offs), sizeof(u16))) {
 			const u16 *tx_buf16 = (const u16 *)(priv->tx_buf + offs);
 
@@ -138,15 +138,13 @@ static void stm32_spi_write_txfifo(struct stm32_spi_priv *priv, uint16_t max)
 			writeb(*tx_buf8, priv->base + STM32_SPI_TXDR);
 			priv->tx_len -= sizeof(u8);
 		}
-		max--;
 	}
 
 	debug("%s: %d bytes left\n", __func__, priv->tx_len);
 }
 
-static uint16_t stm32_spi_read_rxfifo(struct stm32_spi_priv *priv)
+static void stm32_spi_read_rxfifo(struct stm32_spi_priv *priv)
 {
-	u16 bytes_read = 0;
 	u32 sr = readl(priv->base + STM32_SPI_SR);
 	u32 rxplvl = (sr & SPI_SR_RXPLVL) >> SPI_SR_RXPLVL_SHIFT;
 
@@ -161,7 +159,6 @@ static uint16_t stm32_spi_read_rxfifo(struct stm32_spi_priv *priv)
 
 			*rx_buf32 = readl(priv->base + STM32_SPI_RXDR);
 			priv->rx_len -= sizeof(u32);
-			bytes_read += sizeof(u32);
 		} else if (IS_ALIGNED((uintptr_t)(priv->rx_buf + offs), sizeof(u16)) &&
 			   (priv->rx_len >= sizeof(u16) ||
 			    (!(sr & SPI_SR_RXWNE) &&
@@ -170,13 +167,11 @@ static uint16_t stm32_spi_read_rxfifo(struct stm32_spi_priv *priv)
 
 			*rx_buf16 = readw(priv->base + STM32_SPI_RXDR);
 			priv->rx_len -= sizeof(u16);
-			bytes_read += sizeof(u16);
 		} else {
 			u8 *rx_buf8 = (u8 *)(priv->rx_buf + offs);
 
 			*rx_buf8 = readb(priv->base + STM32_SPI_RXDR);
 			priv->rx_len -= sizeof(u8);
-			bytes_read += sizeof(u8);
 		}
 
 		sr = readl(priv->base + STM32_SPI_SR);
@@ -184,7 +179,6 @@ static uint16_t stm32_spi_read_rxfifo(struct stm32_spi_priv *priv)
 	}
 
 	debug("%s: %d bytes left\n", __func__, priv->rx_len);
-	return bytes_read;
 }
 
 static int stm32_spi_enable(struct stm32_spi_priv *priv)
@@ -425,13 +419,11 @@ static int stm32_spi_xfer(struct udevice *slave, unsigned int bitlen,
 
 	/* Be sure to have data in fifo before starting data transfer */
 	if (priv->tx_buf)
-		stm32_spi_write_txfifo(priv, 0xffff);
+		stm32_spi_write_txfifo(priv);
 
 	setbits_le32(priv->base + STM32_SPI_CR1, SPI_CR1_CSTART);
 
 	while (1) {
-		uint16_t bytes_read = 0;
-
 		sr = readl(priv->base + STM32_SPI_SR);
 
 		if (sr & SPI_SR_SUSP) {
@@ -445,14 +437,14 @@ static int stm32_spi_xfer(struct udevice *slave, unsigned int bitlen,
 
 		if (sr & SPI_SR_RXP)
 			if (priv->rx_buf && priv->rx_len > 0)
-				bytes_read = stm32_spi_read_rxfifo(priv);
+				stm32_spi_read_rxfifo(priv);
 
 		if (sr & SPI_SR_TXTF)
 			ifcr |= SPI_SR_TXTF;
 
 		if (sr & SPI_SR_TXP)
 			if (priv->tx_buf && priv->tx_len > 0)
-				stm32_spi_write_txfifo(priv, priv->rx_buf ? bytes_read : 0xffff);
+				stm32_spi_write_txfifo(priv);
 
 		if (sr & SPI_SR_EOT) {
 			if (priv->rx_buf && priv->rx_len > 0)
