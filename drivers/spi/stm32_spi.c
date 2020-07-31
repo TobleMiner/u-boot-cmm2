@@ -407,13 +407,6 @@ static int stm32_spi_xfer(struct udevice *slave, unsigned int bitlen,
 		/* Disable the SPI hardware to unlock CFG1/CFG2 registers */
 		stm32_spi_disable(priv);
 
-		if (mode == SPI_SIMPLEX_TX) {
-			clrbits_le32(priv->base + STM32_SPI_CR1, SPI_CR1_MASRX);
-
-		} else {
-			setbits_le32(priv->base + STM32_SPI_CR1, SPI_CR1_MASRX);
-		}
-
 		clrsetbits_le32(priv->base + STM32_SPI_CFG2, SPI_CFG2_COMM,
 				mode << SPI_CFG2_COMM_SHIFT);
 
@@ -432,7 +425,7 @@ static int stm32_spi_xfer(struct udevice *slave, unsigned int bitlen,
 
 	/* Be sure to have data in fifo before starting data transfer */
 	if (priv->tx_buf)
-		stm32_spi_write_txfifo(priv, 0x04);
+		stm32_spi_write_txfifo(priv, 0xffff);
 
 	setbits_le32(priv->base + STM32_SPI_CR1, SPI_CR1_CSTART);
 
@@ -472,8 +465,6 @@ static int stm32_spi_xfer(struct udevice *slave, unsigned int bitlen,
 				dev_err(bus, "Overrun: RX data lost on %s transfer\n", priv->rx_buf ? (priv->tx_buf ? "duplex" : "rx") : "tx");
 				xfer_status = -EIO;
 				break;
-			} else {
-				ifcr |= SPI_SR_OVR;
 			}
 		}
 
