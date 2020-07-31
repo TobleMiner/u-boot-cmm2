@@ -51,7 +51,7 @@
 
 	chosen {
 		bootargs = "root=/dev/ram";
-		stdout-path = "serial0:115200n8";
+		stdout-path = "serial0:921600n8";
 	};
 
 	memory {
@@ -63,19 +63,11 @@
 		serial0 = &usart1;
 	};
 
-	vdda: regulator-vdda {
+	vdd: regulator-vdd {
 		compatible = "regulator-fixed";
-		regulator-name = "vdda";
+		regulator-name = "vdd";
 		regulator-min-microvolt = <3300000>;
 		regulator-max-microvolt = <3300000>;
-		regulator-always-on;
-	};
-
-	v2v9_sd: regulator-v2v9_sd {
-		compatible = "regulator-fixed";
-		regulator-name = "v2v9_sd";
-		regulator-min-microvolt = <2900000>;
-		regulator-max-microvolt = <2900000>;
 		regulator-always-on;
 	};
 
@@ -85,16 +77,31 @@
 		clocks = <&rcc USB1ULPI_CK>;
 		clock-names = "main_clk";
 	};
-};
 
-&adc_12 {
-	vdda-supply = <&vdda>;
-	vref-supply = <&vdda>;
-	status = "okay";
-	adc1: adc@0 {
-		/* potentiometer */
-		st,adc-channels = <0>;
-		status = "okay";
+	/* not usable, 4KiB/s max speed */
+	spi-gpio {
+		compatible = "spi-gpio";
+		#address-cells = <1>;
+		#size-cells = <0>;
+		cs-gpios = <&gpiod 2 GPIO_ACTIVE_LOW>;
+		gpio-mosi = <&gpioc 12 0>;
+		gpio-miso = <&gpioc 11 0>;
+		gpio-sck = <&gpioc 10 0>;
+		pinctrl-0 = <&soft_spi_pins>;
+		pinctrl-names = "default";
+		spi-delay-us = <0>;
+		status = "disabled";
+
+		gpio-mmc-slot@0 {
+			compatible = "mmc-spi-slot";
+			reg = <0>;
+			gpios = <&gpiod 3 GPIO_ACTIVE_LOW>;
+			pinctrl-0 = <&mmc_spi_pins>;
+			pinctrl-names = "default";
+			spi-cpha;
+			spi-max-frequency = <1000000>;
+			voltage-ranges = <3300 3300>;
+		};
 	};
 };
 
@@ -114,37 +121,6 @@
 	status = "okay";
 };
 
-&mac {
-	status = "disabled";
-	pinctrl-0	= <&ethernet_rmii>;
-	pinctrl-names	= "default";
-	phy-mode	= "rmii";
-	phy-handle	= <&phy0>;
-
-	mdio0 {
-		#address-cells = <1>;
-		#size-cells = <0>;
-		compatible = "snps,dwmac-mdio";
-		phy0: ethernet-phy@0 {
-			reg = <0>;
-		};
-	};
-};
-
-&sdmmc1 {
-	pinctrl-names = "default", "opendrain", "sleep";
-	pinctrl-0 = <&sdmmc1_b4_pins_a &sdmmc1_dir_pins_a>;
-	pinctrl-1 = <&sdmmc1_b4_od_pins_a &sdmmc1_dir_pins_a>;
-	pinctrl-2 = <&sdmmc1_b4_sleep_pins_a &sdmmc1_dir_sleep_pins_a>;
-	broken-cd;
-	st,sig-dir;
-	st,neg-edge;
-	st,use-ckin;
-	bus-width = <4>;
-	vmmc-supply = <&v2v9_sd>;
-	status = "okay";
-};
-
 &usart1 {
 	pinctrl-0 = <&usart1_alt_pins>;
 	pinctrl-names = "default";
@@ -160,13 +136,17 @@
 	status = "disabled";
 };
 
+&sdmmc1 {
+	status = "disabled";
+};
+
 &spi3 {
 	cs-gpios = <&gpiod 2 0>;
 	pinctrl-0 = <&spi3_pins>;
 	pinctrl-names = "default";
 	status = "okay";
 
-	mmc-slot@0 {
+	spi-mmc-slot@0 {
 		compatible = "mmc-spi-slot";
 		reg = <0>;
 		gpios = <&gpiod 3 GPIO_ACTIVE_LOW>;
@@ -176,6 +156,7 @@
 		voltage-ranges = <3300 3300>;
 	};
 };
+
 
 &pinctrl {
 	usart1_alt_pins: usart1@0 {
@@ -208,6 +189,30 @@
 			slew-rate = <3>;
 		};
 	};	
+	soft_spi_pins: spi@0 {
+		pins1 {
+			pinmux = <STM32_PINMUX('C', 12, GPIO)>; /* MOSI */
+			bias-disable;
+			drive-push-pull;
+			slew-rate = <3>;
+		};
+		pins2 {
+			pinmux = <STM32_PINMUX('C', 11, GPIO)>; /* MISO */
+			bias-disable;
+		};
+		pins3 {
+			pinmux = <STM32_PINMUX('C', 10, GPIO)>; /* SCK */
+			bias-disable;
+			drive-push-pull;
+			slew-rate = <3>;
+		};
+		pins4 {
+			pinmux = <STM32_PINMUX('D', 2, GPIO)>; /* SS */
+			bias-disable;
+			drive-push-pull;
+			slew-rate = <0>;
+		};
+	};	
 	mmc_spi_pins: mmc_spi@0 {
 		pins1 {
 			pinmux = <STM32_PINMUX('D', 3, GPIO)>; /* card detect */
@@ -215,3 +220,9 @@
 		};
 	};	
 };
+
+&systick {
+        clock-frequency = <80000000>;
+        status = "okay";
+};
+
