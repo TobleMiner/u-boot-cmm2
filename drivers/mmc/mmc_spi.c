@@ -61,6 +61,9 @@
 #define WRITE_TIMEOUT			3000000 /* 1 sec */
 #define R1B_TIMEOUT			3000000 /* 1 sec */
 
+uint8_t ones[512];
+uint8_t scratch[16];
+
 struct mmc_spi_plat {
 	struct mmc_config cfg;
 	struct mmc mmc;
@@ -90,11 +93,11 @@ static int mmc_spi_sendcmd(struct udevice *dev,
 	cmdo[4] = cmdarg >> 8;
 	cmdo[5] = cmdarg;
 	cmdo[6] = (crc7(0, &cmdo[1], 5) << 1) | 0x01;
-	ret = dm_spi_xfer(dev, sizeof(cmdo) * 8, cmdo, NULL, SPI_XFER_BEGIN);
+	ret = dm_spi_xfer(dev, sizeof(cmdo) * 8, cmdo, scratch, SPI_XFER_BEGIN);
 	if (ret)
 		return ret;
 
-	ret = dm_spi_xfer(dev, 1 * 8, NULL, &r, 0);
+	ret = dm_spi_xfer(dev, 1 * 8, ones, &r, 0);
 	if (ret)
 		return ret;
 
@@ -107,7 +110,7 @@ static int mmc_spi_sendcmd(struct udevice *dev,
 		r = ~resp_match_value;
 		i = CMD_TIMEOUT;
 		while (i) {
-			ret = dm_spi_xfer(dev, 1 * 8, NULL, &r, 0);
+			ret = dm_spi_xfer(dev, 1 * 8, ones, &r, 0);
 			if (ret)
 				return ret;
 			debug(" resp%d=0x%x", rpos, r);
@@ -126,7 +129,7 @@ static int mmc_spi_sendcmd(struct udevice *dev,
 			resp[i] = resp_match_value;
 			continue;
 		}
-		ret = dm_spi_xfer(dev, 1 * 8, NULL, &r, 0);
+		ret = dm_spi_xfer(dev, 1 * 8, ones, &r, 0);
 		if (ret)
 			return ret;
 		debug(" resp%d=0x%x", rpos, r);
@@ -137,7 +140,7 @@ static int mmc_spi_sendcmd(struct udevice *dev,
 	if (r1b == true) {
 		i = R1B_TIMEOUT;
 		while (i) {
-			ret = dm_spi_xfer(dev, 1 * 8, NULL, &r, 0);
+			ret = dm_spi_xfer(dev, 1 * 8, ones, &r, 0);
 			if (ret)
 				return ret;
 
@@ -166,7 +169,7 @@ static int mmc_spi_readdata(struct udevice *dev,
 
 	while (bcnt--) {
 		for (i = 0; i < READ_TIMEOUT; i++) {
-			ret = dm_spi_xfer(dev, 1 * 8, NULL, &r1, 0);
+			ret = dm_spi_xfer(dev, 1 * 8, ones, &r1, 0);
 			if (ret)
 				return ret;
 			if (r1 == SPI_TOKEN_SINGLE)
@@ -174,10 +177,10 @@ static int mmc_spi_readdata(struct udevice *dev,
 		}
 		debug("%s: data tok%d 0x%x\n", __func__, i, r1);
 		if (r1 == SPI_TOKEN_SINGLE) {
-			ret = dm_spi_xfer(dev, bsize * 8, NULL, buf, 0);
+			ret = dm_spi_xfer(dev, bsize * 8, ones, buf, 0);
 			if (ret)
 				return ret;
-			ret = dm_spi_xfer(dev, 2 * 8, NULL, &crc, 0);
+			ret = dm_spi_xfer(dev, 2 * 8, ones, &crc, 0);
 			if (ret)
 				return ret;
 #ifdef CONFIG_MMC_SPI_CRC_ON
@@ -218,11 +221,11 @@ static int mmc_spi_writedata(struct udevice *dev, const void *xbuf,
 #ifdef CONFIG_MMC_SPI_CRC_ON
 		crc = cpu_to_be16(crc16_ccitt(0, (u8 *)buf, bsize));
 #endif
-		dm_spi_xfer(dev, 2 * 8, tok, NULL, 0);
-		dm_spi_xfer(dev, bsize * 8, buf, NULL, 0);
-		dm_spi_xfer(dev, 2 * 8, &crc, NULL, 0);
+		dm_spi_xfer(dev, 2 * 8, tok, scratch, 0);
+		dm_spi_xfer(dev, bsize * 8, buf, scratch, 0);
+		dm_spi_xfer(dev, 2 * 8, &crc, scratch, 0);
 		for (i = 0; i < CMD_TIMEOUT; i++) {
-			dm_spi_xfer(dev, 1 * 8, NULL, &r1, 0);
+			dm_spi_xfer(dev, 1 * 8, ones, &r1, 0);
 			if ((r1 & 0x10) == 0) /* response token */
 				break;
 		}
@@ -230,7 +233,7 @@ static int mmc_spi_writedata(struct udevice *dev, const void *xbuf,
 		if (SPI_MMC_RESPONSE_CODE(r1) == SPI_RESPONSE_ACCEPTED) {
 			debug("%s: data accepted\n", __func__);
 			for (i = 0; i < WRITE_TIMEOUT; i++) { /* wait busy */
-				dm_spi_xfer(dev, 1 * 8, NULL, &r1, 0);
+				dm_spi_xfer(dev, 1 * 8, ones, &r1, 0);
 				if (i && r1 == 0xff) {
 					r1 = 0;
 					break;
@@ -251,9 +254,9 @@ static int mmc_spi_writedata(struct udevice *dev, const void *xbuf,
 	}
 	if (multi && bcnt == -1) { /* stop multi write */
 		tok[1] = SPI_TOKEN_STOP_TRAN;
-		dm_spi_xfer(dev, 2 * 8, tok, NULL, 0);
+		dm_spi_xfer(dev, 2 * 8, tok, scratch, 0);
 		for (i = 0; i < WRITE_TIMEOUT; i++) { /* wait busy */
-			dm_spi_xfer(dev, 1 * 8, NULL, &r1, 0);
+			dm_spi_xfer(dev, 1 * 8, ones, &r1, 0);
 			if (i && r1 == 0xff) {
 				r1 = 0;
 				break;
@@ -401,7 +404,7 @@ static int dm_mmc_spi_request(struct udevice *dev, struct mmc_cmd *cmd,
 	}
 
 done:
-	dm_spi_xfer(dev, 0, NULL, NULL, SPI_XFER_END);
+	dm_spi_xfer(dev, 0, ones, scratch, SPI_XFER_END);
 
 	dm_spi_release_bus(dev);
 
@@ -440,6 +443,8 @@ static int mmc_spi_probe(struct udevice *dev)
 	plat->mmc.dev = dev;
 
 	upriv->mmc = &plat->mmc;
+
+	memset(ones, 0xff, sizeof(ones));
 
 	return 0;
 }
