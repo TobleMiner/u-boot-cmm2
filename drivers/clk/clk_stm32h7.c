@@ -20,6 +20,8 @@
 #define RCC_CR_HSION			BIT(0)
 #define RCC_CR_HSIRDY			BIT(2)
 
+#define RCC_CR_HSI48ON			BIT(12)
+#define RCC_CR_HSI48RDY			BIT(13)
 #define RCC_CR_HSEON			BIT(16)
 #define RCC_CR_HSERDY			BIT(17)
 #define RCC_CR_HSEBYP			BIT(18)
@@ -93,6 +95,8 @@
 #define RCC_PLLCFGR_DIVQ3EN		BIT(23)
 #define RCC_PLLCFGR_DIVR3EN		BIT(24)
 
+#define RCC_APB1HENR_CRSEN		BIT(1)
+
 #define RCC_D1CFGR_HPRE_MASK		GENMASK(3, 0)
 #define RCC_D1CFGR_HPRE_DIVIDED		BIT(3)
 #define RCC_D1CFGR_HPRE_DIVIDER		GENMASK(2, 0)
@@ -132,6 +136,24 @@
 #define		QSPISRC_PLL2_R_CK	2
 #define		QSPISRC_PER_CK		3
 
+#define RCC_D2CCIP2R_USBSEL_MASK	GENMASK(21, 20)
+#define RCC_D2CCIP2R_USBSEL_SHIFT	20
+#define 	USBSEL_DISABLE		0
+#define 	USBSEL_PLL1_Q_CK	1
+#define 	USBSEL_PLL3_Q_CK	2
+#define 	USBSEL_HSI48_CK		3
+
+#define RCC_D2CCIP1R_SPI123SEL_MASK	GENMASK(14, 12)
+#define RCC_D2CCIP1R_SPI123SEL_SHIFT	12
+#define		SPI123SEL_PLL1_Q_CK	0
+#define		SPI123SEL_PLL2_P_CK	1
+#define		SPI123SEL_PLL3_P_CK	2
+#define		SPI123SEL_I2S_CKIN	3
+#define		SPI123SEL_PER_CK	4
+
+#define RCC_BDCR_LSEON			BIT(0)
+#define RCC_BDCR_LSERDY			BIT(1)
+
 #define PWR_CR3				0x0c
 #define PWR_CR3_SCUEN			BIT(2)
 #define PWR_D3CR			0x18
@@ -141,6 +163,32 @@
 #define		VOS_SCALE_2		2
 #define		VOS_SCALE_1		3
 #define PWR_D3CR_VOSREADY		BIT(13)
+
+#define CRS_CR_CEN			BIT(5)
+#define CRS_CR_AUTOTRIMEN		BIT(6)
+
+#define CRS_CFGR_FELIM_MASK		GENMASK(23, 16)
+#define CRS_CFGR_FELIM_SHIFT		16
+
+#define CRS_CFGR_RELOAD_MASK		GENMASK(15, 0)
+
+#define CRS_CFGR_SYNCDIV_MASK		GENMASK(26, 24)
+#define CRS_CFGR_SYNCDIV_SHIFT		24
+#define 	CRS_CFGR_SYNCDIV_1	0
+#define 	CRS_CFGR_SYNCDIV_2	1
+#define 	CRS_CFGR_SYNCDIV_4	2
+#define 	CRS_CFGR_SYNCDIV_8	3
+#define 	CRS_CFGR_SYNCDIV_16	4
+#define 	CRS_CFGR_SYNCDIV_32	5
+#define 	CRS_CFGR_SYNCDIV_64	6
+#define 	CRS_CFGR_SYNCDIV_128	7
+
+
+#define CRS_CFGR_SYNC_SRC_MASK		GENMASK(29, 28)
+#define CRS_CFGR_SYNC_SRC_SHIFT		28
+#define		CRS_CFGR_SYNC_SRC_USB2_SOF	0
+#define		CRS_CFGR_SYNC_SRC_LSE		1
+#define		CRS_CFGR_SYNC_SRC_USB1_SOF	2
 
 struct stm32_rcc_regs {
 	u32 cr;		/* 0x00 Source Control Register */
@@ -201,6 +249,13 @@ struct stm32_rcc_regs {
 	u32 apb1henr;	/* 0xec APB1 high Clock Register */
 	u32 apb2enr;	/* 0xf0 APB2 Clock Register */
 	u32 apb4enr;	/* 0xf4 APB4 Clock Register */
+};
+
+struct stm32_crs_regs {
+	u32 cr;
+	u32 cfgr;
+	u32 isr;
+	u32 icr;
 };
 
 #define RCC_AHB3ENR	offsetof(struct stm32_rcc_regs, ahb3enr)
@@ -358,8 +413,8 @@ struct pll_psc {
 struct pll_psc sys_pll_psc = {
 	.divm = 1,
 	.divn = 50,
-	.divp = 1,
-	.divq = 2,
+	.divp = 1,	// SYS_CK
+	.divq = 2,	// FMC (SDRAM)
 	.divr = 2,
 };
 
@@ -369,24 +424,24 @@ struct pll_psc sys_pll_psc = {
  * pll2_p = 320MHz / pll2_q = 320MHz pll2_r = 320Mhz
  */
 struct pll_psc sdram_pll_psc = {
-	.divm = 1,
-	.divn = 55,
-	.divp = 2,
-	.divq = 2,
-	.divr = 2,
+	.divm = 2,
+	.divn = 120,
+	.divp = 10,
+	.divq = 10,
+	.divr = 10,
 };
 
 /*
  * OSC_HSE = 8 MHz
- * VCO = 440MHz
- * pll2_p = 440MHz / pll2_q = 440MHz pll2_r = 440Mhz
+ * VCO = 480MHz
+ * pll2_p = 120MHz / pll2_q = 48MHz pll2_r = 120Mhz
  */
 struct pll_psc ltdc_pll_psc = {
-	.divm = 1,
-	.divn = 55,
-	.divp = 4,
-	.divq = 4,
-	.divr = 4,
+	.divm = 2,
+	.divn = 120,
+	.divp = 4,	// SPI123 clk
+	.divq = 10,	// USB refclk
+	.divr = 4,	// LTDC
 };
 
 enum apb {
@@ -398,6 +453,7 @@ int configure_clocks(struct udevice *dev)
 {
 	struct stm32_clk *priv = dev_get_priv(dev);
 	struct stm32_rcc_regs *regs = priv->rcc_base;
+	struct stm32_crs_regs *crs_regs = (void*)0x40008400;
 	uint8_t *pwr_base = (uint8_t *)regmap_get_range(priv->pwr_regmap, 0);
 	uint32_t pllckselr = 0;
 	uint32_t pll1divr = 0;
@@ -487,7 +543,7 @@ int configure_clocks(struct udevice *dev)
 	while (!(readl(&regs->cr) & RCC_CR_PLL2RDY))
 		;
 
-	/* sdram: use pll2_r as fmc_k clk */
+	/* sdram: use pll1_q as fmc_k clk */
 	clrsetbits_le32(&regs->d1ccipr, RCC_D1CCIPR_FMCSRC_MASK,
 			FMCSRC_PLL1_Q_CK);
 
@@ -531,6 +587,44 @@ int configure_clocks(struct udevice *dev)
 	while (!(readl(&regs->cr) & RCC_CR_PLL3RDY))
 		;
 
+
+	/* Switch on HSI48 */
+	setbits_le32(&regs->cr, RCC_CR_HSI48ON);
+	while (!(readl(&regs->cr) & RCC_CR_HSI48RDY))
+		;
+
+	/* usbsel: use pll3_q as usb_ck clk */
+	clrsetbits_le32(&regs->d2ccip2r, RCC_D2CCIP2R_USBSEL_MASK,
+			USBSEL_PLL3_Q_CK << RCC_D2CCIP2R_USBSEL_SHIFT);
+
+	/* ensure LSE is enabled */
+	setbits_le32(&regs->bdcr, RCC_BDCR_LSEON);
+	while (!(readl(&regs->bdcr) & RCC_BDCR_LSERDY));
+
+	/* configure CRS */
+	setbits_le32(&regs->apb1henr, RCC_APB1HENR_CRSEN); // enable apb clock
+	clrsetbits_le32(&crs_regs->cfgr, CRS_CFGR_RELOAD_MASK, 46874); // set reload value
+	clrsetbits_le32(&crs_regs->cfgr, CRS_CFGR_FELIM_MASK, 24 << CRS_CFGR_FELIM_SHIFT); // set error margin
+	clrsetbits_le32(&crs_regs->cfgr, CRS_CFGR_SYNC_SRC_MASK, CRS_CFGR_SYNC_SRC_LSE << CRS_CFGR_SYNC_SRC_SHIFT); // sync to LSE
+	clrsetbits_le32(&crs_regs->cfgr, CRS_CFGR_SYNCDIV_MASK, CRS_CFGR_SYNCDIV_32 << CRS_CFGR_SYNCDIV_32); // divide LSE by 32
+
+	setbits_le32(&crs_regs->cr, CRS_CR_CEN | CRS_CR_AUTOTRIMEN); // enable crs
+
+	/* configure usb phy (yes, this does not belong here) */
+
+	setbits_le32(&regs->ahb1enr, 0x8000000); // enable clock
+/*
+	while (!(readl(&regs->ahb1enr) & 0x8000000))
+		;
+	writel((uint32_t)(0x40080000 + 0x0c), 0x21208347); // set phy config
+	writel((uint32_t)(0x40080000 + 0x10), 1); // reset
+	while ((readl((uint32_t)(0x40080000 + 0x10)) & 1)) // wait for reset finished
+		;
+*/
+
+	/* setup spi123 clock */
+	clrsetbits_le32(&regs->d2ccip1r, RCC_D2CCIP1R_SPI123SEL_MASK,
+			SPI123SEL_PLL3_P_CK << RCC_D2CCIP1R_SPI123SEL_SHIFT);
 	return 0;
 }
 
